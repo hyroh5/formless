@@ -1,84 +1,119 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class SolidToGas_ReusePool : MonoBehaviour
+[RequireComponent(typeof(Rigidbody2D))]
+[RequireComponent(typeof(Collider2D))]
+public class SolidToGas : MonoBehaviour
 {
-    [Header("기체 입자 풀 (씬에 미리 배치됨)")]
+    [Header("씬에 미리 배치한 기체 입자들(부모 필요 없음)")]
     public List<GameObject> gasParticles = new List<GameObject>();
 
-    [Header("고체 이동 속도 / 점프 힘")]
+    [Header("원 중심(비우면 초기 무게중심 사용)")]
+    public Transform designCenter;
+
+    [Header("변환 설정")]
+    public float initialForce = 2f;  // 0이면 퍼지는 힘 없음
+
+    [Header("이동/점프")]
     public float moveSpeed = 5f;
     public float jumpForce = 7f;
-
-    [Header("기체로 변환 시 몇 개 활성화할지")]
-    public int spawnCount = 20;
-    public float spawnRadius = 0.5f;
-    public float initialForce = 2f;
-
-    private Rigidbody2D rb;
-    private bool isGrounded;
-
-    [Header("바닥 체크 설정")]
     public Transform groundCheck;
     public float groundCheckRadius = 0.1f;
     public LayerMask groundLayer;
 
-    void Start()
+    Rigidbody2D rb;
+    Collider2D col;
+    bool isGrounded;
+
+    readonly List<Vector2> offsets = new List<Vector2>();
+
+    void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
+        col = GetComponent<Collider2D>();
+        CapturePattern(); // 씬에서 만든 모양 저장
+    }
+
+    void Start()
+    {
+        foreach (var g in gasParticles) if (g) g.SetActive(false); // 시작 시 숨김
     }
 
     void Update()
     {
-        // 바닥에 닿았는지 체크
-        isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
-
         float move = Input.GetAxisRaw("Horizontal");
+        if (move != 0f) rb.velocity = new Vector2(move * moveSpeed, rb.velocity.y);
 
-        // 이동 입력 있을 때만 속도 변경 (경사면 미끄럼 방해 X)
-        if (move != 0)
-        {
-            rb.velocity = new Vector2(move * moveSpeed, rb.velocity.y);
-        }
-
-        // 점프 입력
+        if (groundCheck)
+            isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
         if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
-        {
             rb.velocity = new Vector2(rb.velocity.x, jumpForce);
+
+        if (Input.GetKeyDown(KeyCode.X))
+            TransformToGas();
+    }
+
+    void CapturePattern()
+    {
+        offsets.Clear();
+        if (gasParticles.Count == 0) return;
+
+        Vector2 center;
+        if (designCenter) center = designCenter.position;
+        else
+        {
+            Vector2 sum = Vector2.zero; int n = 0;
+            foreach (var g in gasParticles) { if (!g) continue; sum += (Vector2)g.transform.position; n++; }
+            center = n > 0 ? sum / n : (Vector2)transform.position;
         }
 
-        // 기체 변환
-        if (Input.GetKeyDown(KeyCode.X))
-        {
-            TransformToGas();
-        }
+        foreach (var g in gasParticles)
+            offsets.Add(g ? ((Vector2)g.transform.position - center) : Vector2.zero);
     }
 
     void TransformToGas()
     {
-        int spawned = 0;
+        Vector2 spawnCenter = col ? (Vector2)col.bounds.center : (Vector2)transform.position;
 
-        foreach (GameObject gas in gasParticles)
+        for (int i = 0; i < gasParticles.Count; i++)
         {
-            if (!gas.activeInHierarchy)
+            var g = gasParticles[i];
+            if (!g) continue;
+
+            // 조상 비활성이면 이 입자만 월드로 분리(형제들은 그대로 숨김)
+            if (HasInactiveAncestor(g.transform))
+                g.transform.SetParent(null, true);
+
+            if (!g.activeSelf) g.SetActive(true);
+
+            Vector2 off = i < offsets.Count ? offsets[i] : Vector2.zero;
+            g.transform.position = spawnCenter + off;
+
+            var grb = g.GetComponent<Rigidbody2D>();
+            if (grb)
             {
-                Vector2 offset = Random.insideUnitCircle * spawnRadius;
-                gas.transform.position = transform.position + (Vector3)offset;
-                gas.SetActive(true);
-
-                Rigidbody2D gasRb = gas.GetComponent<Rigidbody2D>();
-                if (gasRb != null)
-                {
-                    Vector2 randomDir = Random.insideUnitCircle.normalized;
-                    gasRb.velocity = randomDir * initialForce;
-                }
-
-                spawned++;
-                if (spawned >= spawnCount)
-                    break;
+                Vector2 dir = off.sqrMagnitude > 1e-8f ? off.normalized : Vector2.zero;
+                grb.velocity = dir * initialForce;
             }
         }
 
-        Destroy(gameObject);
+        Destroy(gameObject); // 변환 후 고체 제거
+    }
+
+    static bool HasInactiveAncestor(Transform t)
+    {
+        for (Transform a = t.parent; a != null; a = a.parent)
+            if (!a.gameObject.activeSelf) return true;
+        return false;
+    }
+
+    void OnDrawGizmosSelected()
+    {
+        if (groundCheck)
+        {
+            Gizmos.color = Color.red;
+            Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
+        }
     }
 }
+
