@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: Fluid
-  m_Shader: {fileID: -6465566751694194690, guid: c2518334d5f51214493b4e70af80130f, type: 3}
+  m_Shader: {fileID: -6465566751694194690, guid: 6bd7759c593c46541997ff840b175b05, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -54,12 +54,14 @@ Material:
     m_Ints: []
     m_Floats:
     - _EnableExternalAlpha: 0
+    - _FoamThickness: 5
     - _QueueControl: 0
     - _QueueOffset: 0
     - _Thickness: 1e-13
     m_Colors:
     - _Color: {r: 0, g: 0.456661, b: 1, a: 1}
     - _Flip: {r: 1, g: 1, b: 1, a: 1}
+    - _FoamColor: {r: 1, g: 1, b: 1, a: 0}
     - _RendererColor: {r: 1, g: 1, b: 1, a: 1}
   m_BuildTextureStacks: []
 --- !u!114 &4400630767232457993
