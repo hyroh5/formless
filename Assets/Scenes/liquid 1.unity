@@ -566,7 +566,7 @@ MonoBehaviour:
   preplacedParticles: []
   designCenter: {fileID: 0}
   liquidParticlePrefab: {fileID: 5418854686890857754, guid: c023cdfe54849c347b55b20f908d77e3, type: 3}
-  particleCount: 100
+  particleCount: 200
   spawnRadius: 1
   initialForce: 2
   inheritVelocity: 1
