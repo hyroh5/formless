@@ -23,6 +23,7 @@ public class SolidToGas : MonoBehaviour
 
     Rigidbody2D rb;
     Collider2D col;
+    Renderer[] renderers;   // ★ 추가: 고체 렌더러들 모음
     bool isGrounded;
 
     readonly List<Vector2> offsets = new List<Vector2>();
@@ -31,6 +32,7 @@ public class SolidToGas : MonoBehaviour
     {
         rb = GetComponent<Rigidbody2D>();
         col = GetComponent<Collider2D>();
+        renderers = GetComponentsInChildren<Renderer>(true); // ★ 추가: 자식까지 수집
         CapturePattern(); // 씬에서 만든 모양 저장
     }
 
@@ -75,6 +77,11 @@ public class SolidToGas : MonoBehaviour
     {
         Vector2 spawnCenter = col ? (Vector2)col.bounds.center : (Vector2)transform.position;
 
+        // ★ 변경점 1: 고체 '삭제' 대신 보이기/물리만 끄기
+        if (renderers != null) foreach (var r in renderers) if (r) r.enabled = false;
+        if (rb) rb.simulated = false;
+        if (col) col.enabled = false;
+
         for (int i = 0; i < gasParticles.Count; i++)
         {
             var g = gasParticles[i];
@@ -97,7 +104,7 @@ public class SolidToGas : MonoBehaviour
             }
         }
 
-        Destroy(gameObject); // 변환 후 고체 제거
+        // ★ 변경점 2: Destroy(gameObject); 제거 (되돌리기 가능하도록 유지)
     }
 
     static bool HasInactiveAncestor(Transform t)
@@ -116,4 +123,5 @@ public class SolidToGas : MonoBehaviour
         }
     }
 }
+
 
