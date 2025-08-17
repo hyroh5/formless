@@ -82,7 +82,7 @@ public class LiquidToSolid : MonoBehaviour
 
         if (active.Count == 0)
         {
-            Debug.LogWarning("[LiquidToSolidRemorph2D] 활성 액체 입자를 찾지 못했어요.");
+            Debug.LogWarning("[LiquidToSolid] 활성 액체 입자를 찾지 못했어요.");
             busy = false;
             yield break;
         }
