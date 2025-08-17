@@ -2366,6 +2366,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Gas_Particle
       objectReference: {fileID: 0}
+    - target: {fileID: 2430651086616349959, guid: 06f858577693f7d49a748d0448163947, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 7271681408616512393, guid: 06f858577693f7d49a748d0448163947, type: 3}
       propertyPath: m_LocalPosition.x
       value: -2.594

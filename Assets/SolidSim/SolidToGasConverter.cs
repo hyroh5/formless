@@ -5,7 +5,7 @@ using UnityEngine;
 [RequireComponent(typeof(Collider2D))]
 public class SolidToGasConverter : MonoBehaviour
 {
-    [Header("씬에 미리 배치한 기체 입자들(부모 필요 없음)")]
+    [Header("가스 루트(부모 폴더) 또는 개별 입자들(둘 다 허용)")]
     public List<GameObject> gasParticles = new List<GameObject>();
 
     [Header("원 중심(비우면 초기 무게중심 사용)")]
@@ -19,7 +19,7 @@ public class SolidToGasConverter : MonoBehaviour
     Rigidbody2D rb;
     Collider2D col;
     Renderer[] renderers;               // 고체 외형만 숨김
-    SolidMovement2D movement;           // 이동 스크립트 분리 참조
+    SolidMovement2D movement;           // 이동 스크립트
     readonly List<Vector2> offsets = new List<Vector2>();
 
     void Awake()
@@ -34,9 +34,9 @@ public class SolidToGasConverter : MonoBehaviour
 
     void Start()
     {
-        // 시작 시 가스 입자 숨김
-        foreach (var g in gasParticles)
-            if (g) g.SetActive(false);
+        // 시작 시 가스 전부 OFF
+        foreach (var root in gasParticles)
+            SetHierarchyActive(root, false);
     }
 
     void Update()
@@ -45,36 +45,42 @@ public class SolidToGasConverter : MonoBehaviour
             ConvertToGas();
     }
 
-    // --- 외부에서 호출 가능 API ---
+    // 외부에서 호출 가능
     public void ConvertToGas()
     {
         Vector2 spawnCenter = col ? (Vector2)col.bounds.center : (Vector2)transform.position;
 
-        // 고체: 렌더러 숨김 + 입력/물리 차단
-        if (renderers != null)
-            foreach (var r in renderers)
-                if (r) r.enabled = false;
+        // 고체 숨김 + 입력/물리 차단
+        if (renderers != null) foreach (var r in renderers) if (r) r.enabled = false;
 
         if (movement) movement.EnableControls(false);
         if (movement) movement.FreezePhysics(true);
-        else
-        {
-            if (rb) rb.simulated = false;
-            if (col) col.enabled = false;
-        }
+        else { if (rb) rb.simulated = false; if (col) col.enabled = false; }
 
-        // 가스 입자 활성화 + 배치 + 초기 속도
-        for (int i = 0; i < gasParticles.Count; i++)
+        // 가스 트리 전체 ON + 보이기 보장 + 배치/속도
+        var allGasLeafs = ResolveAllLeafs(); // 실제 파티클(자식들 포함) 목록
+
+        // 부모 트리 자체도 반드시 ON (두 번째 X 대비)
+        foreach (var root in gasParticles)
+            SetHierarchyActive(root, true);
+
+        for (int i = 0; i < allGasLeafs.Count; i++)
         {
-            var g = gasParticles[i];
+            var g = allGasLeafs[i];
             if (!g) continue;
 
-            // 조상 비활성 상태면, 이 입자만 분리(월드 루트로)
-            if (HasInactiveAncestor(g.transform))
-                g.transform.SetParent(null, true);
+            // 렌더러/파티클/알파 ON
+            var rends = g.GetComponentsInChildren<Renderer>(true);
+            foreach (var rr in rends) if (rr) rr.enabled = true;
 
-            if (!g.activeSelf) g.SetActive(true);
+            var pss = g.GetComponentsInChildren<ParticleSystem>(true);
+            foreach (var ps in pss) if (ps && !ps.isPlaying) ps.Play();
 
+            var srs = g.GetComponentsInChildren<SpriteRenderer>(true);
+            foreach (var sr in srs)
+                if (sr) { var c = sr.color; c.a = 1f; sr.color = c; }
+
+            // 위치/속도
             Vector2 off = i < offsets.Count ? offsets[i] : Vector2.zero;
             g.transform.position = spawnCenter + off;
 
@@ -85,21 +91,22 @@ public class SolidToGasConverter : MonoBehaviour
                 grb.velocity = dir * initialForce;
             }
         }
-        // 파괴 안 함(복구 가능성 열어둠)
     }
 
-    // --- 초기 디자인 패턴(상대 좌표) 기억 ---
+    // 초기 디자인 패턴(상대 좌표) 저장
     void CapturePattern()
     {
         offsets.Clear();
-        if (gasParticles.Count == 0) return;
+
+        var leafs = ResolveAllLeafs();
+        if (leafs.Count == 0) return;
 
         Vector2 center;
         if (designCenter) center = designCenter.position;
         else
         {
             Vector2 sum = Vector2.zero; int n = 0;
-            foreach (var g in gasParticles)
+            foreach (var g in leafs)
             {
                 if (!g) continue;
                 sum += (Vector2)g.transform.position; n++;
@@ -107,15 +114,42 @@ public class SolidToGasConverter : MonoBehaviour
             center = n > 0 ? sum / n : (Vector2)transform.position;
         }
 
-        foreach (var g in gasParticles)
+        foreach (var g in leafs)
             offsets.Add(g ? ((Vector2)g.transform.position - center) : Vector2.zero);
     }
 
-    static bool HasInactiveAncestor(Transform t)
+    // 현재 설정된 루트들로부터 "실제 파티클 후보" 추출
+    List<GameObject> ResolveAllLeafs()
     {
-        for (Transform a = t.parent; a != null; a = a.parent)
-            if (!a.gameObject.activeSelf) return true;
-        return false;
+        var list = new List<GameObject>();
+        var set = new HashSet<GameObject>();
+
+        foreach (var root in gasParticles)
+        {
+            if (!root) continue;
+
+            if (root.TryGetComponent<Rigidbody2D>(out _))
+                set.Add(root);
+
+            var rbs = root.GetComponentsInChildren<Rigidbody2D>(true);
+            foreach (var r in rbs) if (r) set.Add(r.gameObject);
+        }
+
+        list.AddRange(set);
+        return list;
+    }
+
+    // 외부에서 안전하게 접근용
+    public bool HasAnyGas() => gasParticles != null && gasParticles.Count > 0;
+    public IEnumerable<GameObject> GetGasRootsOrParticlesSafe() => gasParticles ?? (IEnumerable<GameObject>)System.Array.Empty<GameObject>();
+
+    // 부모/자식 포함 전체 토글
+    static void SetHierarchyActive(GameObject root, bool on)
+    {
+        if (!root) return;
+        var all = root.GetComponentsInChildren<Transform>(true);
+        foreach (var tr in all) tr.gameObject.SetActive(on);
     }
 }
+
 
