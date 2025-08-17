@@ -1065,6 +1065,43 @@ MonoBehaviour:
   toSolidKey: 99
   gatherDuration: 0.6
   endRadius: 0.02
+--- !u!114 &768900903
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 468344211}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bb482ce9c25b445488ccb6dd9ad67c57, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  moveSpeed: 5
+  jumpForce: 7
+  groundCheck: {fileID: 1438465482}
+  groundCheckRadius: 0.1
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 256
+--- !u!114 &768900904
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 468344211}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a73787942cd8d594695d72ac00af35a4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  gasParticles:
+  - {fileID: 302513346}
+  designCenter: {fileID: 768900897}
+  initialForce: 2
+  listenHotkey: 1
+  convertKey: 120
 --- !u!1 &812831709 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 8181241924652514576, guid: 06f858577693f7d49a748d0448163947, type: 3}
@@ -2306,6 +2343,12 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 3134280527552907166, guid: 4f994f3e8ce4b6544b0487ab7fbdfd78, type: 3}
       insertIndex: -1
       addedObject: {fileID: 768900902}
+    - targetCorrespondingSourceObject: {fileID: 3134280527552907166, guid: 4f994f3e8ce4b6544b0487ab7fbdfd78, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 768900904}
+    - targetCorrespondingSourceObject: {fileID: 3134280527552907166, guid: 4f994f3e8ce4b6544b0487ab7fbdfd78, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 768900903}
   m_SourcePrefab: {fileID: 100100000, guid: 4f994f3e8ce4b6544b0487ab7fbdfd78, type: 3}
 --- !u!1001 &8443666950769925134
 PrefabInstance:
