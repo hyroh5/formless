@@ -2070,6 +2070,10 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 302513347}
     - target: {fileID: 351256474854479710, guid: 4f994f3e8ce4b6544b0487ab7fbdfd78, type: 3}
+      propertyPath: initialForce
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 351256474854479710, guid: 4f994f3e8ce4b6544b0487ab7fbdfd78, type: 3}
       propertyPath: groundLayer.m_Bits
       value: 256
       objectReference: {fileID: 0}
