@@ -19,14 +19,12 @@ public class SolidToGasConverter : MonoBehaviour
     Rigidbody2D rb;
     Collider2D col;
     Renderer[] renderers;               // 고체 외형만 숨김
-    SolidMovement2D movement;           // 이동 스크립트
     readonly List<Vector2> offsets = new List<Vector2>();
 
     void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
         col = GetComponent<Collider2D>();
-        movement = GetComponent<SolidMovement2D>();
         renderers = GetComponentsInChildren<Renderer>(true);
 
         CapturePattern(); // 가스 입자 패턴 기억
@@ -50,12 +48,10 @@ public class SolidToGasConverter : MonoBehaviour
     {
         Vector2 spawnCenter = col ? (Vector2)col.bounds.center : (Vector2)transform.position;
 
-        // 고체 숨김 + 입력/물리 차단
+        // 고체 숨김 + 물리 차단 (movement 의존성 제거)
         if (renderers != null) foreach (var r in renderers) if (r) r.enabled = false;
-
-        if (movement) movement.EnableControls(false);
-        if (movement) movement.FreezePhysics(true);
-        else { if (rb) rb.simulated = false; if (col) col.enabled = false; }
+        if (rb)  rb.simulated = false;
+        if (col) col.enabled    = false;
 
         // 가스 트리 전체 ON + 보이기 보장 + 배치/속도
         var allGasLeafs = ResolveAllLeafs(); // 실제 파티클(자식들 포함) 목록
@@ -151,5 +147,3 @@ public class SolidToGasConverter : MonoBehaviour
         foreach (var tr in all) tr.gameObject.SetActive(on);
     }
 }
-
-

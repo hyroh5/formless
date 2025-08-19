@@ -281,7 +281,12 @@ Rigidbody2D:
   m_SleepingMode: 1
   m_CollisionDetection: 0
   m_Constraints: 0
---- !u!1001 &727629613
+--- !u!4 &762993023 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 4618819876373331120, guid: 3ae23a76042b5994d85e78dcf03fb8c0, type: 3}
+  m_PrefabInstance: {fileID: 9123798143738341344}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1001 &902572019
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -289,55 +294,51 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
-    - target: {fileID: 5000421744336926405, guid: 6d1dad84938a73e4e833a07fd010993e, type: 3}
-      propertyPath: toSolidKey
-      value: 257
-      objectReference: {fileID: 0}
-    - target: {fileID: 5000421744336926405, guid: 6d1dad84938a73e4e833a07fd010993e, type: 3}
-      propertyPath: solidPrefab
-      value: 
-      objectReference: {fileID: 3631089531613643111, guid: 3ae23a76042b5994d85e78dcf03fb8c0, type: 3}
-    - target: {fileID: 6129472231870320162, guid: 6d1dad84938a73e4e833a07fd010993e, type: 3}
+    - target: {fileID: 7700217246327933571, guid: e51881804a06bd74192e60b8c3f11320, type: 3}
       propertyPath: m_Name
-      value: LiquidToSolidManager (1)
+      value: Liquid_Particle
       objectReference: {fileID: 0}
-    - target: {fileID: 8860921516577422780, guid: 6d1dad84938a73e4e833a07fd010993e, type: 3}
+    - target: {fileID: 7700217246327933571, guid: e51881804a06bd74192e60b8c3f11320, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8940623558855253074, guid: e51881804a06bd74192e60b8c3f11320, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -1.4114106
+      value: -0.8519762
       objectReference: {fileID: 0}
-    - target: {fileID: 8860921516577422780, guid: 6d1dad84938a73e4e833a07fd010993e, type: 3}
+    - target: {fileID: 8940623558855253074, guid: e51881804a06bd74192e60b8c3f11320, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1.4800318
+      value: 1.0361658
       objectReference: {fileID: 0}
-    - target: {fileID: 8860921516577422780, guid: 6d1dad84938a73e4e833a07fd010993e, type: 3}
+    - target: {fileID: 8940623558855253074, guid: e51881804a06bd74192e60b8c3f11320, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0.6585523
+      value: -0.016296843
       objectReference: {fileID: 0}
-    - target: {fileID: 8860921516577422780, guid: 6d1dad84938a73e4e833a07fd010993e, type: 3}
+    - target: {fileID: 8940623558855253074, guid: e51881804a06bd74192e60b8c3f11320, type: 3}
       propertyPath: m_LocalRotation.w
       value: 1
       objectReference: {fileID: 0}
-    - target: {fileID: 8860921516577422780, guid: 6d1dad84938a73e4e833a07fd010993e, type: 3}
+    - target: {fileID: 8940623558855253074, guid: e51881804a06bd74192e60b8c3f11320, type: 3}
       propertyPath: m_LocalRotation.x
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 8860921516577422780, guid: 6d1dad84938a73e4e833a07fd010993e, type: 3}
+    - target: {fileID: 8940623558855253074, guid: e51881804a06bd74192e60b8c3f11320, type: 3}
       propertyPath: m_LocalRotation.y
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 8860921516577422780, guid: 6d1dad84938a73e4e833a07fd010993e, type: 3}
+    - target: {fileID: 8940623558855253074, guid: e51881804a06bd74192e60b8c3f11320, type: 3}
       propertyPath: m_LocalRotation.z
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 8860921516577422780, guid: 6d1dad84938a73e4e833a07fd010993e, type: 3}
+    - target: {fileID: 8940623558855253074, guid: e51881804a06bd74192e60b8c3f11320, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 8860921516577422780, guid: 6d1dad84938a73e4e833a07fd010993e, type: 3}
+    - target: {fileID: 8940623558855253074, guid: e51881804a06bd74192e60b8c3f11320, type: 3}
       propertyPath: m_LocalEulerAnglesHint.y
       value: 0
       objectReference: {fileID: 0}
-    - target: {fileID: 8860921516577422780, guid: 6d1dad84938a73e4e833a07fd010993e, type: 3}
+    - target: {fileID: 8940623558855253074, guid: e51881804a06bd74192e60b8c3f11320, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
@@ -345,7 +346,12 @@ PrefabInstance:
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: 6d1dad84938a73e4e833a07fd010993e, type: 3}
+  m_SourcePrefab: {fileID: 100100000, guid: e51881804a06bd74192e60b8c3f11320, type: 3}
+--- !u!1 &902572020 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 7700217246327933571, guid: e51881804a06bd74192e60b8c3f11320, type: 3}
+  m_PrefabInstance: {fileID: 902572019}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1129475116
 GameObject:
   m_ObjectHideFlags: 0
@@ -925,6 +931,26 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 3306522118731764824, guid: 3ae23a76042b5994d85e78dcf03fb8c0, type: 3}
+      propertyPath: morphKey
+      value: 50
+      objectReference: {fileID: 0}
+    - target: {fileID: 3306522118731764824, guid: 3ae23a76042b5994d85e78dcf03fb8c0, type: 3}
+      propertyPath: designCenter
+      value: 
+      objectReference: {fileID: 762993023}
+    - target: {fileID: 3306522118731764824, guid: 3ae23a76042b5994d85e78dcf03fb8c0, type: 3}
+      propertyPath: liquidParticlePrefab
+      value: 
+      objectReference: {fileID: 0}
+    - target: {fileID: 3306522118731764824, guid: 3ae23a76042b5994d85e78dcf03fb8c0, type: 3}
+      propertyPath: preplacedParticles.Array.size
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 3306522118731764824, guid: 3ae23a76042b5994d85e78dcf03fb8c0, type: 3}
+      propertyPath: preplacedParticles.Array.data[0]
+      value: 
+      objectReference: {fileID: 902572020}
     - target: {fileID: 3631089531613643111, guid: 3ae23a76042b5994d85e78dcf03fb8c0, type: 3}
       propertyPath: m_Name
       value: Solid_Particle
@@ -970,13 +996,41 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 6225628948232009291, guid: 3ae23a76042b5994d85e78dcf03fb8c0, type: 3}
+      propertyPath: convertKey
+      value: 51
+      objectReference: {fileID: 0}
+    - target: {fileID: 6225628948232009291, guid: 3ae23a76042b5994d85e78dcf03fb8c0, type: 3}
       propertyPath: gasParticles.Array.data[0]
       value: 
       objectReference: {fileID: 1327835169}
     - target: {fileID: 6888478950023388689, guid: 3ae23a76042b5994d85e78dcf03fb8c0, type: 3}
+      propertyPath: toSolidKey
+      value: 49
+      objectReference: {fileID: 0}
+    - target: {fileID: 6888478950023388689, guid: 3ae23a76042b5994d85e78dcf03fb8c0, type: 3}
+      propertyPath: groundLayer.m_Bits
+      value: 256
+      objectReference: {fileID: 0}
+    - target: {fileID: 6888478950023388689, guid: 3ae23a76042b5994d85e78dcf03fb8c0, type: 3}
+      propertyPath: gasRootsOrParticles.Array.size
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6888478950023388689, guid: 3ae23a76042b5994d85e78dcf03fb8c0, type: 3}
       propertyPath: gasRootsOrParticles.Array.data[0]
       value: 
       objectReference: {fileID: 1327835169}
+    - target: {fileID: 6888478950023388689, guid: 3ae23a76042b5994d85e78dcf03fb8c0, type: 3}
+      propertyPath: gasRootsOrParticles.Array.data[1]
+      value: 
+      objectReference: {fileID: 1327835169}
+    - target: {fileID: 6888478950023388689, guid: 3ae23a76042b5994d85e78dcf03fb8c0, type: 3}
+      propertyPath: liquidRootsOrParticles.Array.size
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6888478950023388689, guid: 3ae23a76042b5994d85e78dcf03fb8c0, type: 3}
+      propertyPath: liquidRootsOrParticles.Array.data[0]
+      value: 
+      objectReference: {fileID: 902572020}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -994,4 +1048,4 @@ SceneRoots:
   - {fileID: 1129475117}
   - {fileID: 366236482}
   - {fileID: 9123798143738341344}
-  - {fileID: 727629613}
+  - {fileID: 902572019}

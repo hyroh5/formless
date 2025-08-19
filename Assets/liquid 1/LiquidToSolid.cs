@@ -1,69 +1,41 @@
-// LiquidToSolidRemorph2D.cs
+// LiquidToSolidRealtime.cs  (GasToSolidRealtimeì™€ ë™ì¼í•œ ì‘ë™ ë°©ì‹)
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class LiquidToSolid : MonoBehaviour
+[RequireComponent(typeof(Rigidbody2D))]
+[RequireComponent(typeof(Collider2D))]
+public class LiquidToSolidRealtime : MonoBehaviour
 {
-    [Header("¾×Ã¼ ÀÔÀÚ ºÎ¸ğ(Æú´õ) ¶Ç´Â °³º° ÀÔÀÚµé (¼¯¾î ³Ö¾îµµ µÊ)")]
+    [Header("ì•¡ì²´ í´ë”(ë¶€ëª¨) ë˜ëŠ” ê°œë³„ ì…ìë“¤ (ì„ì–´ ë„£ì–´ë„ ë¨)")]
     public List<GameObject> liquidRootsOrParticles = new List<GameObject>();
 
-    [Header("ÅÂ±× ±â¹İ µ¿Àû ¼öÁı (¿É¼Ç)")]
-    public bool includeTagSearch = true;
-    public string liquidTag = "Liquid";   // ¾×Ã¼ ÇÁ¸®ÆÕ/ÀÎ½ºÅÏ½º¿¡ ÀÌ ÅÂ±×¸¦ ´Ş¾ÆµÎ¸é ÀÚµ¿ ¼öÁıµÊ
-
-    [Header("°íÃ¼ ÇÁ¸®ÆÕ (¹İµå½Ã ÁöÁ¤)")]
-    public GameObject solidPrefab;
-
-    [Header("Å° / ¸ğÀÌ±â ¿¬Ãâ")]
+    [Header("í‚¤ / ëª¨ì´ê¸° ì‹œê°„")]
     public KeyCode toSolidKey = KeyCode.C;
-    public float gatherDuration = 0.6f;   // ¸ğÀ¸´Â ¿¬Ãâ ½Ã°£
-    public float endRadius = 0.02f;       // ¸»¹Ì ÀÜ¶³¸²(0ÀÌ¸é ¿ÏÀü ÇÑ Á¡)
+    public float gatherDuration = 0.6f;
+    public float endRadius = 0.02f;
 
-    [Header("º¹¿ø À§Ä¡/¼Óµµ ¿É¼Ç")]
-    public bool alignToGround = true;     // ¹Ù´Ú¿¡ ¸ÂÃç »ìÂ¦ ¶ç¿ö ¹èÄ¡
-    public LayerMask groundLayer;
-    public float solidRadius = 0.5f;      // ¿ø °íÃ¼ ¹İÁö¸§(¹Ù´Ú¿¡¼­ ÀÌ¸¸Å­ À§·Î ¿Ã¸²)
-    public bool inheritAverageVelocity = true; // ÀÔÀÚ Æò±Õ¼Óµµ¸¦ °íÃ¼ ÃÊ±â¼Óµµ·Î
-
-    [Header("Á¤¸® ¹æ½Ä")]
-    public bool destroyParticlesOnSolidify = false; // true¸é ÇÕÃ¼ ÈÄ ÀÔÀÚ Destroy, false¸é ºñÈ°¼º
-
+    Rigidbody2D rb;
+    Collider2D col;
+    Renderer[] renderers;
     bool busy;
 
-    // ½ÇÇà ½ÃÁ¡¿¡ ¡°ÇöÀç¡± ¾×Æ¼ºê ÀÔÀÚ¸¦ ¸ğÀ¸´Â ÇÔ¼ö(ºÎ¸ğ/°³º°/ÅÂ±× ¸ğµÎ Áö¿ø)
-    void ResolveParticlesRuntime(List<GameObject> outList)
+    // í™•ì • ì…ì ëª©ë¡(ë¶€ëª¨ê°€ ë°”ë€Œì–´ë„ ìœ ì§€)
+    readonly List<GameObject> particles = new List<GameObject>();
+
+    void Awake()
     {
-        outList.Clear();
-        var set = new HashSet<GameObject>();
+        rb = GetComponent<Rigidbody2D>();
+        col = GetComponent<Collider2D>();
+        renderers = GetComponentsInChildren<Renderer>(true);
 
-        // ºÎ¸ğ/°³º°¿¡¼­ ¼öÁı
-        foreach (var root in liquidRootsOrParticles)
-        {
-            if (!root) continue;
+        ResolveParticlesOnce();
+    }
 
-            // ÀÚ±â ÀÚ½ÅÀÌ ÀÔÀÚ¸é Ãß°¡
-            if (root.TryGetComponent<Rigidbody2D>(out _))
-                set.Add(root);
-
-            // ÀÚ½Ä Áß Rigidbody2D¸¦ °¡Áø ¾×Æ¼ºê/ºñÈ°¼º Æ÷ÇÔ
-            var rbs = root.GetComponentsInChildren<Rigidbody2D>(true);
-            foreach (var r in rbs)
-                if (r) set.Add(r.gameObject);
-        }
-
-        // ÅÂ±× ±â¹İ ¼öÁı(¿É¼Ç)
-        if (includeTagSearch && !string.IsNullOrEmpty(liquidTag))
-        {
-            var gos = GameObject.FindGameObjectsWithTag(liquidTag);
-            foreach (var go in gos)
-                if (go && go.TryGetComponent<Rigidbody2D>(out _))
-                    set.Add(go);
-        }
-
-        // ÃÖÁ¾ Á¤¸® (ÇöÀç ¾À¿¡¼­ È°¼ºÀÎ ¾Öµé¸¸ ½ÇÁ¦·Î »ç¿ë)
-        foreach (var g in set)
-            if (g && g.activeInHierarchy) outList.Add(g);
+    void OnValidate()
+    {
+        if (Application.isPlaying) return;
+        ResolveParticlesOnce();
     }
 
     void Update()
@@ -72,129 +44,142 @@ public class LiquidToSolid : MonoBehaviour
             StartCoroutine(CoToSolid());
     }
 
+    // ë¶€ëª¨/ê°œë³„ ì„ì—¬ë„ Rigidbody2D ê°€ì§„ ì‹¤ì œ ì…ìë§Œ ìºì‹±
+    void ResolveParticlesOnce()
+    {
+        particles.Clear();
+        var set = new HashSet<GameObject>();
+
+        foreach (var root in liquidRootsOrParticles)
+        {
+            if (!root) continue;
+
+            if (root.TryGetComponent<Rigidbody2D>(out _))
+                set.Add(root);
+
+            var rbs = root.GetComponentsInChildren<Rigidbody2D>(true);
+            foreach (var r in rbs) if (r) set.Add(r.gameObject);
+        }
+
+        // ì¤‘ë³µ ë°©ì§€ í›„ ê³ ì • ìºì‹œ
+        particles.AddRange(set);
+    }
+
     IEnumerator CoToSolid()
     {
         busy = true;
 
-        // 1) ÇöÀç È°¼º ¾×Ã¼ ÀÔÀÚ µ¿Àû ¼öÁı
-        var active = new List<GameObject>(64);
-        ResolveParticlesRuntime(active);
+        // 1) í™œì„± ì…ìë§Œ ì·¨í•©í•´ ë¬´ê²Œì¤‘ì‹¬
+        var active = new List<GameObject>(particles.Count);
+        Vector2 sum = Vector2.zero;
+        foreach (var g in particles)
+        {
+            if (g && g.activeInHierarchy)
+            {
+                active.Add(g);
+                sum += (Vector2)g.transform.position;
+            }
+        }
 
+        // í™œì„± ì…ì ì—†ìœ¼ë©´ í˜„ì¬ ìœ„ì¹˜ì—ì„œ ê³ ì²´ë§Œ ë³µêµ¬
         if (active.Count == 0)
         {
-            Debug.LogWarning("[LiquidToSolid] È°¼º ¾×Ã¼ ÀÔÀÚ¸¦ Ã£Áö ¸øÇß¾î¿ä.");
+            RestoreSolid(transform.position);
+            ForceOffAllLiquidHierarchies();
             busy = false;
             yield break;
         }
 
-        // 2) ¼¾Æ®·ÎÀÌµå/Æò±Õ¼Óµµ °è»ê
-        Vector2 sumPos = Vector2.zero, sumVel = Vector2.zero;
-        int n = 0;
-        foreach (var g in active)
-        {
-            var tr = g.transform;
-            sumPos += (Vector2)tr.position;
-            var rb = g.GetComponent<Rigidbody2D>();
-            if (rb) sumVel += rb.velocity;
-            n++;
-        }
-        Vector2 center = sumPos / n;
-        Vector2 avgVel = (n > 0) ? (sumVel / n) : Vector2.zero;
+        Vector2 center2D = sum / active.Count;
 
-        // ¹Ù´Ú Á¤·Ä ¿É¼Ç: ¼¾ÅÍ ¾Æ·¡·Î ·¹ÀÌÄ³½ºÆ®
-        if (alignToGround)
-        {
-            var hit = Physics2D.Raycast(center + Vector2.up * 0.2f, Vector2.down, 5f, groundLayer);
-            if (hit.collider)
-                center = hit.point + hit.normal.normalized * solidRadius;
-        }
-
-        // 3) ¸ğÀ¸´Â µ¿¾È ¹°¸® Àá½Ã ²û + ½ÃÀÛ À§Ä¡ ÀúÀå
+        // 2) ëª¨ìœ¼ëŠ” ë™ì•ˆ ë¬¼ë¦¬ ì ê¹ ì •ì§€
         var starts = new Vector3[active.Count];
-        var saved = new List<(Rigidbody2D rb, bool simulated, bool kinematic)>(active.Count);
+        var savedSim = new List<(Rigidbody2D rb2, bool was)>(active.Count);
         for (int i = 0; i < active.Count; i++)
         {
-            var go = active[i];
-            starts[i] = go.transform.position;
-
-            var rb2d = go.GetComponent<Rigidbody2D>();
-            if (rb2d)
+            starts[i] = active[i].transform.position;
+            var grb = active[i].GetComponent<Rigidbody2D>();
+            if (grb)
             {
-                saved.Add((rb2d, rb2d.simulated, rb2d.isKinematic));
-                rb2d.velocity = Vector2.zero;
-                rb2d.angularVelocity = 0f;
-                // ½Ã¹Ä·¹ÀÌ¼ÇÀ» ²ô¸é Ãæµ¹¾øÀÌ À§Ä¡¸¸ º¸°£ °¡´É
-                rb2d.simulated = false;
+                savedSim.Add((grb, grb.simulated));
+                grb.velocity = Vector2.zero;
+                grb.angularVelocity = 0f;
+                grb.simulated = false;
             }
         }
 
-        // 4) ºÎµå·´°Ô ¹«°ÔÁß½ÉÀ¸·Î ¸ğÀ¸±â (smoothstep)
+        // 3) ìŠ¤ë¬´ìŠ¤í•˜ê²Œ ë¬´ê²Œì¤‘ì‹¬ìœ¼ë¡œ
         float t = 0f;
         while (t < gatherDuration)
         {
             float s = t / gatherDuration;
-            float u = s * s * (3f - 2f * s); // smoothstep 0->1
-
+            float u = s * s * (3f - 2f * s);
             for (int i = 0; i < active.Count; i++)
             {
                 var g = active[i];
                 if (!g) continue;
 
-                Vector2 p = Vector2.Lerp((Vector2)starts[i], center, u);
-
+                Vector2 p = Vector2.Lerp((Vector2)starts[i], center2D, u);
                 if (endRadius > 0f)
                 {
-                    // ÀÔÀÚ¸¶´Ù ´Ù¸¥ À§»óÀ¸·Î ¹Ì¼¼ Èçµé¸²
                     float seed = (i * 0.6180339887f) % 1f;
                     float ang = seed * Mathf.PI * 2f;
                     Vector2 jitter = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang)) * (endRadius * (1f - u));
                     p += jitter;
                 }
-
-                var pos = g.transform.position;
-                g.transform.position = new Vector3(p.x, p.y, pos.z);
+                g.transform.position = new Vector3(p.x, p.y, g.transform.position.z);
             }
-
             t += Time.deltaTime;
             yield return null;
         }
 
-        // 5) ½º³À + ÀÔÀÚ Á¤¸®(ºñÈ°¼º ¶Ç´Â ÆÄ±«) + ¹°¸® º¹±¸
-        for (int i = 0; i < active.Count; i++)
+        // 4) ìŠ¤ëƒ… + ì•¡ì²´ ì „ì²´ OFF(íŠ¸ë¦¬) + ë¬¼ë¦¬ ë³µêµ¬
+        foreach (var g in active)
         {
-            var g = active[i];
             if (!g) continue;
-
-            var pos = g.transform.position;
-            g.transform.position = new Vector3(center.x, center.y, pos.z);
-
-            if (destroyParticlesOnSolidify) Object.Destroy(g);
-            else g.SetActive(false);
-        }
-        foreach (var s in saved)
-        {
-            if (!s.rb) continue;
-            s.rb.isKinematic = s.kinematic;
-            s.rb.simulated = s.simulated;
+            g.transform.position = new Vector3(center2D.x, center2D.y, g.transform.position.z);
         }
 
-        // 6) °íÃ¼ ½ºÆù
-        if (!solidPrefab)
-        {
-            Debug.LogError("[LiquidToSolidRemorph2D] solidPrefabÀÌ ºñ¾îÀÖ½À´Ï´Ù.");
-        }
-        else
-        {
-            var solid = Instantiate(solidPrefab, center, Quaternion.identity);
+        ForceOffAllLiquidHierarchies();
 
-            // Æò±Õ ¼Óµµ »ó¼Ó(¼±ÅÃ)
-            if (inheritAverageVelocity)
-            {
-                var srb = solid.GetComponent<Rigidbody2D>();
-                if (srb) srb.velocity = avgVel;
-            }
-        }
+        foreach (var pair in savedSim)
+            if (pair.rb2) pair.rb2.simulated = pair.was;
+
+        // 5) ê³ ì²´ ë³µêµ¬(ë¬´ì¡°ê±´ center2Dì—ì„œ ì¼œì§)
+        RestoreSolid(new Vector3(center2D.x, center2D.y, transform.position.z));
 
         busy = false;
     }
+
+    void RestoreSolid(Vector3 pos)
+    {
+        transform.position = pos;
+
+        // ì™¸í˜• ë³µêµ¬
+        if (renderers != null) foreach (var r in renderers) if (r) r.enabled = true;
+
+        // ë¬¼ë¦¬/ì¶©ëŒ ë³µêµ¬
+        if (rb) rb.simulated = true;
+        if (col) col.enabled = true;
+
+    }
+
+    // ì”¬ ë‚´ ëª¨ë“  ì•¡ì²´ ë£¨íŠ¸/ì…ì íŠ¸ë¦¬ë¥¼ ê°•ì œ OFF
+    void ForceOffAllLiquidHierarchies()
+    {
+        foreach (var root in liquidRootsOrParticles)
+            SetHierarchyActive(root, false);
+    }
+
+    // ë¶€ëª¨/ìì‹ í¬í•¨ ì „ì²´ í† ê¸€
+    static void SetHierarchyActive(GameObject root, bool on)
+    {
+        if (!root) return;
+        var all = root.GetComponentsInChildren<Transform>(true); // ë¹„í™œì„± í¬í•¨
+        foreach (var tr in all) tr.gameObject.SetActive(on);
+    }
 }
+
+
+
+
