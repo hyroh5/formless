@@ -10,6 +10,11 @@ public class PhaseToSolidRealtime : MonoBehaviour
     public List<GameObject> liquidRootsOrParticles = new List<GameObject>();
     public List<GameObject> gasRootsOrParticles    = new List<GameObject>();
 
+    [Header("합체 마감 연출 옵션")]
+    public bool snapToCenterAtEnd = false;        // true면 센터로 스냅(기존), false면 현재 위치 유지
+    public bool deactivateRootHierarchies = false; // true면 루트까지 OFF, false면 입자(leaf)만 OFF
+
+
     [Header("키 / 모이기 연출")]
     public KeyCode toSolidKey = KeyCode.Alpha1;  // ← 1번키
     public float gatherDuration = 0.6f;
@@ -159,13 +164,20 @@ public class PhaseToSolidRealtime : MonoBehaviour
         {
             var go = active[i];
             var pos = go.transform.position;
-            go.transform.position = new Vector3(center.x, center.y, pos.z);
+
+            // ★ 변경: 스냅 여부 선택
+            Vector3 finalPos = snapToCenterAtEnd
+                ? new Vector3(center.x, center.y, pos.z)  // 기존 방식
+                : pos;                                    // 현재 위치 유지
+
+            go.transform.position = finalPos;
 
             if ((isLiquid && destroyLiquidOnSolidify) || (!isLiquid && destroyGasOnSolidify))
                 Object.Destroy(go);
             else
                 go.SetActive(false);
         }
+
         foreach (var s in saved)
         {
             if (!s.rb2) continue;
@@ -173,11 +185,14 @@ public class PhaseToSolidRealtime : MonoBehaviour
             s.rb2.simulated = s.simulated;
         }
 
-        // 8) 사용한 쪽 트리 전체 OFF 보장 (부모까지 확실히 내리기)
-        if (isLiquid) ForceSetHierarchy(liquidRootsOrParticles, false);
-        else          ForceSetHierarchy(gasRootsOrParticles,    false);
+        // 8) 사용한 쪽 트리 OFF (옵션화)
+        if (deactivateRootHierarchies)
+        {
+            if (isLiquid) ForceSetHierarchy(liquidRootsOrParticles, false);
+            else ForceSetHierarchy(gasRootsOrParticles, false);
+        }
 
-        // 9) 딜레이 후, "무게중심"에서 고체 복구
+        // 9) 고체 복구 동일
         Vector3 finalCenter = new Vector3(center.x, center.y, transform.position.z);
         yield return Delay();
         RestoreSolid(finalCenter, avgVel);
