@@ -17,9 +17,9 @@ public class SolidToLiquid2D : MonoBehaviour
     public bool inheritVelocity = true;   // 고체 속도 상속
 
     [Header("키 설정")]
-    public KeyCode morphKey = KeyCode.M;
+    public KeyCode morphKey = KeyCode.M;  // 디렉터에서 None으로 덮어씀
 
-    // ===== 고체 이동/점프 (네가 쓰던 로직 유지) =====
+    // ===== 고체 이동/점프 =====
     [Header("이동/점프")]
     public float moveForce = 20f;
     public float maxSpeed = 6f;
@@ -161,7 +161,7 @@ public class SolidToLiquid2D : MonoBehaviour
             offsets.Add(g ? ((Vector2)g.transform.position - center) : Vector2.zero);
     }
 
-    // ▶ 핵심: 비활성 조상들을 통째로 켜주고, SetParent로 떼지 않음(누적 꼬임 방지)
+    // ▶ 부모/조상 강제 ON + 전체 토글
     static void ForceActivateAllAncestorsOf(List<GameObject> particles)
     {
         var toActivate = new HashSet<GameObject>();
@@ -187,7 +187,7 @@ public class SolidToLiquid2D : MonoBehaviour
         foreach (var tr in all) tr.gameObject.SetActive(on);
     }
 
-    // ====== 여기부터 '두-패스' 전환(플래시/작게 보임 방지 + 스케일 복구) ======
+    // ====== '두-패스' 전환 ======
     void TransformToLiquid()
     {
         Vector2 center      = col ? (Vector2)col.bounds.center : (Vector2)transform.position;
@@ -204,8 +204,7 @@ public class SolidToLiquid2D : MonoBehaviour
         ForceActivateAllAncestorsOf(preplacedParticles);
         ForceSetHierarchyAll(preplacedParticles, true);
 
-        // (3) 패스 A — '보이지 않는 상태'에서 자리 먼저 잡기
-        //     (렌더러/콜라이더 OFF, Rigidbody.simulated=false)
+        // (3) 패스 A — 보이지 않는 상태에서 자리 먼저 잡기
         for (int i = 0; i < leafs.Count; i++)
         {
             var g = leafs[i];
@@ -220,7 +219,7 @@ public class SolidToLiquid2D : MonoBehaviour
 
             g.transform.position = new Vector3(pos.x, pos.y, 0f);
             g.transform.rotation = Quaternion.identity;
-            RestoreScaleRecursive(g.transform); // 혹시 0으로 눌린 스케일 복구
+            RestoreScaleRecursive(g.transform);
         }
 
         // (4) 패스 B — 같은 프레임에서 보이기 + 물리 켜기 + 초기 힘
@@ -315,3 +314,4 @@ public class SolidToLiquid2D : MonoBehaviour
             RestoreScaleRecursive(t.GetChild(i));
     }
 }
+

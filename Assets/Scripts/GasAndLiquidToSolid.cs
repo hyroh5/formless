@@ -45,7 +45,13 @@ public class PhaseToSolidRealtime : MonoBehaviour
     void Update()
     {
         if (!busy && Input.GetKeyDown(toSolidKey))
-            StartCoroutine(CoToSolidAuto());
+            TriggerToSolid();
+    }
+
+    // 외부에서 호출용 (디렉터가 호출)
+    public void TriggerToSolid()
+    {
+        if (!busy) StartCoroutine(CoToSolidAuto());
     }
 
     IEnumerator CoToSolidAuto()
@@ -246,9 +252,3 @@ public class PhaseToSolidRealtime : MonoBehaviour
         else                    yield return new WaitForSeconds(solidSpawnDelay);
     }
 }
-
-
-
-
-
-
