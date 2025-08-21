@@ -6,41 +6,44 @@ public class SlideBlock2D : MonoBehaviour
 {
     public enum SlideMode { Toggle, Hold, OneShot }
 
-    [Header("기본 이동 설정")]
-    public Vector2 direction = Vector2.right;  // 이동 방향(월드)
-    public float distance = 2f;                // 이동 거리
-    public float speed = 3f;                   // m/s
-    public AnimationCurve ease = AnimationCurve.EaseInOut(0, 0, 1, 1);
+    [Header("이동 경로")]
+    public Vector2 direction = Vector2.right;
+    public float distance = 2f;
+
+    [Header("애니메이션 시간 / 이징")]
+    public float openDuration = 0.55f;
+    public float closeDuration = 0.45f;
+    public AnimationCurve openCurve = null;   // 기본: EaseInOut
+    public AnimationCurve closeCurve = null;
 
     [Header("동작 모드")]
     public SlideMode mode = SlideMode.Toggle;
-    public bool startOpened = false;           // 시작 상태(열림=끝 위치)
+    public bool startOpened = false;
 
     [Header("부가 옵션")]
-    public float startDelay = 0f;              // 동작 전 지연
-    public float returnDelay = 0f;             // Hold에서 손 떼면 닫히기 전 지연
-    public bool autoReturnInToggle = false;    // Toggle에서도 일정 시간 뒤 자동 복귀
-    public float autoReturnDelay = 1.5f;
-
-    [Header("물리 연동(선택)")]
+    public float startDelay = 0f;
+    public float returnDelay = 0f;          // Hold일 때 발 떼고 닫히기까지
     public bool useRigidbodyIfPresent = true;
+    public bool unscaledTime = false;       // 일시정지 연출 등에서 사용
+    public bool addSmoothDamp = true;       // 커브에 한 번 더 부드러움
 
-    // ---- 내부 ----
-    Vector3 startPos, endPos;
+    // ----- 내부 -----
+    Vector3 pStart, pEnd;
     Rigidbody2D rb;
     Coroutine playCo;
-    bool opened;       // 현재 열림 여부
-    bool locked;       // OneShot으로 열리고 잠금
+    bool opened;     // 현재 논리 상태
 
     void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
-        startPos = transform.position;
-        endPos = startPos + (Vector3)(direction.normalized * distance);
+        pStart = transform.position;
+        pEnd = pStart + (Vector3)(direction.normalized * distance);
         opened = startOpened;
 
-        if (startOpened) Snap(endPos);
-        else Snap(startPos);
+        if (openCurve == null) openCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
+        if (closeCurve == null) closeCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
+
+        Snap(opened ? pEnd : pStart);
     }
 
     void Snap(Vector3 p)
@@ -49,80 +52,78 @@ public class SlideBlock2D : MonoBehaviour
         else transform.position = p;
     }
 
-    // --- 외부 호출용 ---
-    public void PressDown()  // 버튼 눌림 시작
+    // 외부에서 호출
+    public void PressDown()
     {
-        if (locked) return;
-
-        if (mode == SlideMode.Hold)
-        {
-            MoveTo(true);
-        }
-        else if (mode == SlideMode.Toggle)
-        {
-            MoveTo(!opened);
-            if (autoReturnInToggle)
-                StartCoroutine(CoAutoReturn());
-        }
-        else if (mode == SlideMode.OneShot)
-        {
-            if (!opened)
-            {
-                MoveTo(true);
-                locked = true; // 다시 닫히지 않음
-            }
-        }
+        if (mode == SlideMode.Hold) MoveTo(true);
+        else if (mode == SlideMode.Toggle) MoveTo(!opened);
+        else if (mode == SlideMode.OneShot && !opened) MoveTo(true);
     }
-
-    public void PressUp()    // 버튼에서 발 뗐을 때
+    public void PressUp()
     {
-        if (locked) return;
         if (mode == SlideMode.Hold)
         {
-            if (returnDelay > 0f) StartCoroutine(CoReturnAfterDelay());
+            if (returnDelay > 0f) StartCoroutine(CoDelayThen(() => MoveTo(false), returnDelay));
             else MoveTo(false);
         }
-        // Toggle/OneShot은 무시
     }
 
-    IEnumerator CoAutoReturn()
+    IEnumerator CoDelayThen(System.Action act, float d)
     {
-        yield return new WaitForSeconds(autoReturnDelay);
-        if (mode == SlideMode.Toggle && opened) MoveTo(false);
+        if (unscaledTime) yield return new WaitForSecondsRealtime(d);
+        else yield return new WaitForSeconds(d);
+        act?.Invoke();
     }
 
-    IEnumerator CoReturnAfterDelay()
-    {
-        yield return new WaitForSeconds(returnDelay);
-        MoveTo(false);
-    }
-
-    void MoveTo(bool open)
+    void MoveTo(bool toOpen)
     {
         if (playCo != null) StopCoroutine(playCo);
-        playCo = StartCoroutine(CoMove(open));
+        playCo = StartCoroutine(CoMove(toOpen));
     }
 
     IEnumerator CoMove(bool toOpen)
     {
-        if (startDelay > 0f) yield return new WaitForSeconds(startDelay);
+        if (startDelay > 0f)
+        {
+            if (unscaledTime) yield return new WaitForSecondsRealtime(startDelay);
+            else yield return new WaitForSeconds(startDelay);
+        }
 
-        Vector3 from = (rb && useRigidbodyIfPresent) ? (Vector3)rb.position : transform.position;
-        Vector3 to = toOpen ? endPos : startPos;
+        // 현재 위치에서 시작 (중간 전환 지원)
+        Vector3 from = rb && useRigidbodyIfPresent ? (Vector3)rb.position : transform.position;
+        Vector3 to = toOpen ? pEnd : pStart;
 
-        float dist = Vector3.Distance(from, to);
-        float dur = (speed <= 0.0001f) ? 0f : dist / speed;
+        float totalDist = Vector3.Distance(from, to);
+        if (totalDist < 0.0001f) { Snap(to); opened = toOpen; yield break; }
+
+        // 남은 거리 비율만큼 실제 duration 축소/확장
+        float baseDur = toOpen ? openDuration : closeDuration;
+        float fullDist = Vector3.Distance(pStart, pEnd);
+        float dur = baseDur * Mathf.Clamp01(totalDist / Mathf.Max(0.0001f, fullDist));
+
+        var curve = toOpen ? openCurve : closeCurve;
         float t = 0f;
+        Vector3 vel = Vector3.zero; // SmoothDamp용
 
+        // Rigidbody라면 FixedUpdate 타이밍 사용
         while (t < dur)
         {
-            float u = ease.Evaluate(Mathf.Clamp01(t / Mathf.Max(dur, 0.0001f)));
-            Vector3 p = Vector3.Lerp(from, to, u);
+            float dt = unscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
+            t += dt;
+            float u = Mathf.Clamp01(t / dur);
+            float w = curve.Evaluate(u);
 
-            if (rb && useRigidbodyIfPresent) rb.MovePosition(p);
-            else transform.position = p;
+            Vector3 target = Vector3.Lerp(from, to, w);
 
-            t += Time.deltaTime;
+            if (addSmoothDamp)
+                target = Vector3.SmoothDamp(
+                    rb && useRigidbodyIfPresent ? (Vector3)rb.position : transform.position,
+                    target, ref vel, 0.06f, Mathf.Infinity, dt);
+
+            if (rb && useRigidbodyIfPresent) rb.MovePosition(target);
+            else transform.position = target;
+
+            // FixedUpdate 느낌을 줌 (물리와 싱크)
             yield return null;
         }
 
