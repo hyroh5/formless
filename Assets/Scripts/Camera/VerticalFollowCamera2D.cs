@@ -16,6 +16,11 @@ public class VerticalFollowCamera2D : MonoBehaviour
 
     public enum FocusMode { TargetOnly, ParticlesOnly, Auto }
 
+    [Header("입자 포커싱 옵션")]
+    [Range(0f, 1f)] public float centerBias = 0.5f; // 0=극단점만, 1=중심만, 0.5=중간
+    public float extentSmoothFactor = 0.5f;          // 0=즉시, 1=매우 느림(기존 extentSmoothing 대체용)
+
+
     [Header("대상(고체)")]
     public Transform target;
 
@@ -155,24 +160,25 @@ public class VerticalFollowCamera2D : MonoBehaviour
         {
             float targetSize = cam.orthographicSize;
 
-            if (currSource == Source.Particles && hasParticles)
+            if (currSource == Source.Particles && TryGetParticlesYAndExtent(out _, out float h))
             {
-                // 범위에 패딩 적용
-                float desiredValue = Mathf.Clamp(particlesHalfHeight * zoomPad, minOrthoSize, maxOrthoSize);
+                // 현재 입자 세로 반높이 h 를 패딩과 함께 꼭 맞게 담는다
+                float need = h * zoomPad;                  // 내용 + 패딩
+                                                           // 현재 사이즈가 need 보다 작으면 키우고, 크면 서서히 최소 줌으로 돌아감
+                float desiredValue = Mathf.Clamp(need, minOrthoSize, maxOrthoSize);
 
-                // 프레임 간 범위 스무딩(튀는 확대/축소 방지)
-                lastExtent = Mathf.Lerp(lastExtent, desiredValue, 1f - Mathf.Exp(-extentSmoothing * Mathf.Max(0.0001f, Time.deltaTime)));
-
-                targetSize = lastExtent;
+                // 부드럽게 보간
+                targetSize = Mathf.Lerp(cam.orthographicSize, desiredValue, Time.deltaTime * zoomLerpSpeed);
             }
             else
             {
-                // 타깃 모드/없을 때는 천천히 최소 줌으로 회귀
+                // 타깃-only 혹은 입자 없음 → 천천히 기본 줌으로 복귀
                 targetSize = Mathf.Lerp(cam.orthographicSize, minOrthoSize, Time.deltaTime * zoomLerpSpeed);
             }
 
-            cam.orthographicSize = Mathf.Lerp(cam.orthographicSize, targetSize, Time.deltaTime * zoomLerpSpeed);
+            cam.orthographicSize = targetSize;
         }
+
     }
 
     // ------- 포커스 소스 계산 -------
@@ -210,39 +216,85 @@ public class VerticalFollowCamera2D : MonoBehaviour
     /// 입자들의 중심 Y와 세로 반높이(= (maxY-minY)/2 )를 계산.
     /// 샘플이 부족하면 false.
     /// </summary>
-    bool TryGetParticlesYAndExtent(out float centerY, out float halfHeight)
+    /// <summary>
+    /// 활성 세트(액체 또는 기체)를 골라
+    ///  - 액체면 가장 아래 입자(minY)
+    ///  - 기체면 가장 위 입자(maxY)
+    /// 를 포커스 Y로 반환.
+    /// 또한 halfHeight = (maxY-minY)/2 를 함께 반환(오토줌용).
+    /// </summary>
+    bool TryGetParticlesYAndExtent(out float focusY, out float halfHeight)
     {
-        centerY = 0f; halfHeight = 0f;
+        focusY = 0f; halfHeight = 0f;
 
-        List<Transform> samples = CollectActiveParticleSamples();
-        if (samples.Count < minParticleSamples) return false;
+        // 1) 세트별 샘플 수집
+        var liq = new List<Transform>(64);
+        var gas = new List<Transform>(64);
+        AccumulateFromRoots(liquidRootsOrParticles, liq);
+        AccumulateFromRoots(gasRootsOrParticles, gas);
 
-        // 무게/비가중 중심
-        float sumY = 0f;
-        float sumW = 0f;
-        float minPy = float.PositiveInfinity, maxPy = float.NegativeInfinity;
-
-        foreach (var t in samples)
+        if (includeTagSearch)
         {
+            if (!string.IsNullOrEmpty(liquidTag)) AccumulateFromTag(liquidTag, liq);
+            if (!string.IsNullOrEmpty(gasTag)) AccumulateFromTag(gasTag, gas);
+        }
+
+        // 2) 활성 세트 선택(액체 우선)
+        List<Transform> use = null;
+        bool usingLiquid = false;
+        if (liq.Count >= minParticleSamples) { use = liq; usingLiquid = true; }
+        else if (gas.Count >= minParticleSamples) { use = gas; usingLiquid = false; }
+        else return false;
+
+        // 3) min/max, 질량가중 중심 계산
+        float minY = float.PositiveInfinity, maxY = float.NegativeInfinity;
+        double sumW = 0.0, sumYw = 0.0;
+
+        foreach (var t in use)
+        {
+            if (!t) continue;
+            float y = t.position.y;
+
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+
             float w = 1f;
             if (weightByMass)
             {
                 var rb2d = t.GetComponent<Rigidbody2D>();
                 if (rb2d) w = Mathf.Max(0.0001f, rb2d.mass);
             }
-
-            float py = t.position.y;
-            sumY += py * w;
             sumW += w;
-
-            if (py < minPy) minPy = py;
-            if (py > maxPy) maxPy = py;
+            sumYw += y * w;
         }
 
-        centerY = (sumW > 0f) ? (sumY / sumW) : transform.position.y;
-        halfHeight = Mathf.Max((maxPy - minPy) * 0.5f, 0f);
+        if (sumW <= 0.0) return false;
+
+        float centroidY = (float)(sumYw / sumW);
+        float extremeY = usingLiquid ? minY : maxY;
+
+        // 4) 포커스 Y: 극단점↔중심 가중 중간값
+        //    centerBias=0.5면 둘 사이 정확히 중간 → 두 점이 동시에 프레이밍되기 쉬움
+        focusY = Mathf.Lerp(extremeY, centroidY, Mathf.Clamp01(centerBias));
+
+        // 5) 오토줌용 세로 반높이 계산
+        //    - 전체 분포 반높이: (max-min)/2
+        //    - 극단점 중심 간 거리의 반값: abs(extreme centroid)/2
+        //    이 둘 중 큰 값을 채택해 두 지점이 반드시 한 화면에 들어오도록 함
+        float halfBySpread = Mathf.Max(0f, (maxY - minY) * 0.5f);
+        float halfByTwoPoints = Mathf.Abs(extremeY - centroidY) * 0.5f;
+        float halfRaw = Mathf.Max(halfBySpread, halfByTwoPoints);
+
+        // 6) 범위 스무딩(프레임 간 깜빡임 방지)
+        // extentSmoothFactor: 0=즉시 반영, 1=매우 느림
+        float lerpT = Mathf.Clamp01(1f - extentSmoothFactor);
+        lastExtent = Mathf.Lerp(lastExtent <= 0f ? halfRaw : lastExtent, halfRaw, lerpT);
+        halfHeight = lastExtent;
+
         return true;
     }
+
+
 
     List<Transform> CollectActiveParticleSamples()
     {
