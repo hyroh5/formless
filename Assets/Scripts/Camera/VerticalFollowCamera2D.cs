@@ -5,26 +5,21 @@ using UnityEngine;
 [RequireComponent(typeof(Camera))]
 public class VerticalFollowCamera2D : MonoBehaviour
 {
-    // 1) 클래스 필드에 추가 (선호도에 맞게 on/off 가능)
+    // ───────── 옵션 ─────────
+    [Header("가시성/물리 조건")]
     [SerializeField] bool treatTargetUnavailableIfRendererHidden = true;
     [SerializeField] bool treatTargetUnavailableIfPhysicsOff = true;
-
-    // 캐시용
-    Renderer[] targetRenderers;
-    Rigidbody2D targetRb;
-    Collider2D targetCol;
 
     public enum FocusMode { TargetOnly, ParticlesOnly, Auto }
 
     [Header("입자 포커싱 옵션")]
-    [Range(0f, 1f)] public float centerBias = 0.5f; // 0=극단점만, 1=중심만, 0.5=중간
-    public float extentSmoothFactor = 0.5f;          // 0=즉시, 1=매우 느림(기존 extentSmoothing 대체용)
-
+    [Range(0f, 1f)] public float centerBias = 0.5f;   // 0=극단점, 1=중심, 0.5=중간
+    [Range(0f, 1f)] public float extentSmoothFactor = 0.5f; // 0=즉시, 1=매우 느림
 
     [Header("대상(고체)")]
     public Transform target;
 
-    [Header("입자 세트(액체/기체) - 루트(부모) 또는 개별 파티클")]
+    [Header("입자 세트(액체/기체) - 루트 또는 개별 파티클")]
     public List<GameObject> liquidRootsOrParticles = new();
     public List<GameObject> gasRootsOrParticles = new();
 
@@ -37,8 +32,8 @@ public class VerticalFollowCamera2D : MonoBehaviour
     public FocusMode focus = FocusMode.Auto;
 
     [Header("블렌드(타깃↔입자 전환)")]
-    public float switchBlendTime = 0.25f;  // 포커스 소스 바뀔 때 Y를 이 시간동안 섞기
-    public float sourceStickTime = 0.15f;  // 소스 바뀐 직후 재전환 방지(히스테리시스)
+    public float switchBlendTime = 0.25f;   // 소스 전환 시 Y 보간 시간
+    public float sourceStickTime = 0.15f;   // 재전환 억제
 
     [Header("Y 이동 스무딩")]
     public float smoothTime = 0.25f;
@@ -59,26 +54,37 @@ public class VerticalFollowCamera2D : MonoBehaviour
     public bool useAutoZoom = true;
     public float minOrthoSize = 5f;
     public float maxOrthoSize = 12f;
-    public float zoomPad = 1.2f;           // 입자 범위에 더해 줄 여유
+    public float zoomPad = 1.2f;
     public float zoomLerpSpeed = 3f;
 
     [Header("입자 샘플 옵션")]
-    public int minParticleSamples = 3;     // 이보다 적으면 입자 포커스 무시
-    public bool weightByMass = true;       // 무게중심 계산에 mass 가중
-    public float extentSmoothing = 0.2f;   // 프레임 간 범위 스무딩(0~1, 0=즉시)
+    public int minParticleSamples = 3;  // 이보다 적으면 입자 포커스 무시
+    public bool weightByMass = true;     // 질량 가중 중심
+
+    [Header("소스 홀드(전환 그레이스)")]
+    [Tooltip("상태 전환 등으로 소스가 잠깐 사라져도 마지막 유효값을 유지하는 시간")]
+    public float missingHoldTime = 0.35f;
+
+    // ───────── 내부 캐시 ─────────
+    Renderer[] targetRenderers;
+    Rigidbody2D targetRb;
+    Collider2D targetCol;
 
     Camera cam;
-
-    // 상태
     float velY;
     float lastFocusY;
-    float lastExtent;          // 지난 프레임의 절반 높이(세미-스무딩)
+    float lastExtent;  // 오토줌용 halfHeight의 스무딩 캐시
+
     enum Source { None, Target, Particles }
     Source currSource = Source.None;
     Source lastSource = Source.None;
     float sourceChangedAt = -999f;
 
-    // Awake() 끝부분에 캐싱 추가
+    // 최근 유효 값(홀드용)
+    float lastValidTargetY, lastValidParticlesY, lastValidParticlesHalf;
+    float targetSeenAt = -999f;
+    float particlesSeenAt = -999f;
+
     void Awake()
     {
         cam = GetComponent<Camera>();
@@ -95,27 +101,22 @@ public class VerticalFollowCamera2D : MonoBehaviour
 
     void LateUpdate()
     {
-        // 1) 이번 프레임의 후보 포커스(Y와 세로범위) 계산
+        // 1) 이번 프레임의 후보 포커스 계산(홀드 적용)
         bool hasTarget = TryGetTargetY(out float targetY);
-        bool hasParticles = TryGetParticlesYAndExtent(out float particlesY, out float particlesHalfHeight);
+        bool hasParticles = TryGetParticlesYAndExtent_WithHold(out float particlesY, out float particlesHalfHeight);
 
-        // 2) 어떤 소스를 쓸지 결정 (Auto일 때만 전환)
+        // 2) 소스 선택
         Source desired = currSource;
         switch (focus)
         {
-            case FocusMode.TargetOnly:
-                desired = hasTarget ? Source.Target : Source.None;
-                break;
-            case FocusMode.ParticlesOnly:
-                desired = hasParticles ? Source.Particles : Source.None;
-                break;
+            case FocusMode.TargetOnly: desired = hasTarget ? Source.Target : Source.None; break;
+            case FocusMode.ParticlesOnly: desired = hasParticles ? Source.Particles : Source.None; break;
             case FocusMode.Auto:
-                // 타깃 살아있으면 우선, 없으면 입자
-                desired = hasTarget ? Source.Target : (hasParticles ? Source.Particles : Source.None);
+                desired = hasTarget ? Source.Target :
+                          (hasParticles ? Source.Particles : Source.None);
                 break;
         }
 
-        // 히스테리시스: 일정 시간 안에는 소스 급변 방지
         if (desired != currSource && (Time.time - sourceChangedAt) >= sourceStickTime)
         {
             lastSource = currSource;
@@ -123,111 +124,104 @@ public class VerticalFollowCamera2D : MonoBehaviour
             sourceChangedAt = Time.time;
         }
 
-        // 3) 소스에 따른 목표 Y
-        float rawFocusY;
-        if (currSource == Source.Target && hasTarget) rawFocusY = targetY;
-        else if (currSource == Source.Particles && hasParticles) rawFocusY = particlesY;
-        else rawFocusY = lastFocusY;
+        // 3) 목표 Y(안전 대체 포함)
+        float SafeTargetY() => hasTarget ? targetY : (targetSeenAt > 0 ? lastValidTargetY : lastFocusY);
+        float SafeParticlesY() => hasParticles ? particlesY : (particlesSeenAt > 0 ? lastValidParticlesY : lastFocusY);
 
-        // 4) 소스 전환 중이면 Y를 부드럽게 블렌드
+        float rawFocusY =
+            (currSource == Source.Target && hasTarget) ? targetY :
+            (currSource == Source.Particles && hasParticles) ? particlesY :
+            lastFocusY;
+
+        // 4) 소스 전환 블렌딩(미유효 소스는 캐시로 대체)
         float blendedY = rawFocusY;
         if (switchBlendTime > 0f && lastSource != Source.None && currSource != lastSource)
         {
-            float t = Mathf.InverseLerp(0f, switchBlendTime, Time.time - sourceChangedAt);
-            t = Mathf.Clamp01(t);
-            float fromY = lastSource == Source.Target ? targetY : particlesY;
-            float toY = currSource == Source.Target ? targetY : particlesY;
+            float t = Mathf.Clamp01((Time.time - sourceChangedAt) / Mathf.Max(0.0001f, switchBlendTime));
+            float fromY = (lastSource == Source.Target) ? SafeTargetY() : SafeParticlesY();
+            float toY = (currSource == Source.Target) ? SafeTargetY() : SafeParticlesY();
             blendedY = Mathf.Lerp(fromY, toY, t);
         }
 
-        // 5) 데드존 & 스무딩
+        // 5) 데드존 및 스무딩 이동
         float targetYFinal = blendedY + verticalOffset;
         float currY = transform.position.y;
-        if (Mathf.Abs(targetYFinal - currY) < deadZone)
-            targetYFinal = currY;
+        if (Mathf.Abs(targetYFinal - currY) < deadZone) targetYFinal = currY;
 
         float newY = Mathf.SmoothDamp(currY, targetYFinal, ref velY, smoothTime, maxFollowSpeed);
-
         if (clampY) newY = Mathf.Clamp(newY, minY, maxY);
 
         float newX = lockX ? fixedX : transform.position.x;
         transform.position = new Vector3(newX, newY, transform.position.z);
-
         lastFocusY = newY;
 
-        // 6) 오토줌: 입자 범위로 세로 프레이밍(없으면 유지)
+        // 6) 오토줌(입자 소스일 때만, 홀드 포함)
         if (useAutoZoom && cam)
         {
             float targetSize = cam.orthographicSize;
-
-            if (currSource == Source.Particles && TryGetParticlesYAndExtent(out _, out float h))
+            if (currSource == Source.Particles &&
+                TryGetParticlesYAndExtent_WithHold(out _, out float h))
             {
-                // 현재 입자 세로 반높이 h 를 패딩과 함께 꼭 맞게 담는다
-                float need = h * zoomPad;                  // 내용 + 패딩
-                                                           // 현재 사이즈가 need 보다 작으면 키우고, 크면 서서히 최소 줌으로 돌아감
+                float need = h * zoomPad;
                 float desiredValue = Mathf.Clamp(need, minOrthoSize, maxOrthoSize);
-
-                // 부드럽게 보간
                 targetSize = Mathf.Lerp(cam.orthographicSize, desiredValue, Time.deltaTime * zoomLerpSpeed);
             }
             else
             {
-                // 타깃-only 혹은 입자 없음 → 천천히 기본 줌으로 복귀
                 targetSize = Mathf.Lerp(cam.orthographicSize, minOrthoSize, Time.deltaTime * zoomLerpSpeed);
             }
-
             cam.orthographicSize = targetSize;
         }
-
     }
 
-    // ------- 포커스 소스 계산 -------
+    // ───────── 포커스 계산 ─────────
 
-    // 2) 이 함수 전체 교체
+    // 타깃 Y(홀드 포함)
     bool TryGetTargetY(out float y)
     {
         y = 0f;
-        if (!target || !target.gameObject.activeInHierarchy) return false;
 
-        // (A) 렌더러가 모두 꺼져 있으면 '안 보이는 것'으로 간주
-        if (treatTargetUnavailableIfRendererHidden && targetRenderers != null && targetRenderers.Length > 0)
+        bool visibleOk = true;
+        bool physicsOk = true;
+
+        if (!target || !target.gameObject.activeInHierarchy) visibleOk = false;
+
+        if (visibleOk && treatTargetUnavailableIfRendererHidden && targetRenderers != null && targetRenderers.Length > 0)
         {
             bool anyVisible = false;
-            foreach (var r in targetRenderers)
-            {
-                if (r && r.enabled) { anyVisible = true; break; }
-            }
-            if (!anyVisible) return false;
+            foreach (var r in targetRenderers) { if (r && r.enabled) { anyVisible = true; break; } }
+            if (!anyVisible) visibleOk = false;
         }
 
-        // (B) 물리가 꺼져 있으면(모핑 중) '추적 불가'로 간주
-        if (treatTargetUnavailableIfPhysicsOff)
+        if (visibleOk && treatTargetUnavailableIfPhysicsOff)
         {
-            if (targetRb && !targetRb.simulated) return false;
-            if (targetCol && !targetCol.enabled) return false;
+            if (targetRb && !targetRb.simulated) physicsOk = false;
+            if (targetCol && !targetCol.enabled) physicsOk = false;
         }
 
-        y = target.position.y;
-        return true;
+        if (visibleOk && physicsOk)
+        {
+            y = target.position.y;
+            lastValidTargetY = y;
+            targetSeenAt = Time.time;
+            return true;
+        }
+
+        // 최근 값 홀드
+        if (Time.time - targetSeenAt <= missingHoldTime)
+        {
+            y = lastValidTargetY;
+            return true;
+        }
+        return false;
     }
 
-
-    /// <summary>
-    /// 입자들의 중심 Y와 세로 반높이(= (maxY-minY)/2 )를 계산.
-    /// 샘플이 부족하면 false.
-    /// </summary>
-    /// <summary>
-    /// 활성 세트(액체 또는 기체)를 골라
-    ///  - 액체면 가장 아래 입자(minY)
-    ///  - 기체면 가장 위 입자(maxY)
-    /// 를 포커스 Y로 반환.
-    /// 또한 halfHeight = (maxY-minY)/2 를 함께 반환(오토줌용).
-    /// </summary>
+    // 입자 포커스(계산)
     bool TryGetParticlesYAndExtent(out float focusY, out float halfHeight)
     {
         focusY = 0f; halfHeight = 0f;
 
-        // 1) 세트별 샘플 수집
+        // 1) 샘플 수집
         var liq = new List<Transform>(64);
         var gas = new List<Transform>(64);
         AccumulateFromRoots(liquidRootsOrParticles, liq);
@@ -246,7 +240,7 @@ public class VerticalFollowCamera2D : MonoBehaviour
         else if (gas.Count >= minParticleSamples) { use = gas; usingLiquid = false; }
         else return false;
 
-        // 3) min/max, 질량가중 중심 계산
+        // 3) min/max, 질량가중 중심
         float minY = float.PositiveInfinity, maxY = float.NegativeInfinity;
         double sumW = 0.0, sumYw = 0.0;
 
@@ -267,54 +261,55 @@ public class VerticalFollowCamera2D : MonoBehaviour
             sumW += w;
             sumYw += y * w;
         }
-
         if (sumW <= 0.0) return false;
 
         float centroidY = (float)(sumYw / sumW);
         float extremeY = usingLiquid ? minY : maxY;
 
         // 4) 포커스 Y: 극단점↔중심 가중 중간값
-        //    centerBias=0.5면 둘 사이 정확히 중간 → 두 점이 동시에 프레이밍되기 쉬움
         focusY = Mathf.Lerp(extremeY, centroidY, Mathf.Clamp01(centerBias));
 
-        // 5) 오토줌용 세로 반높이 계산
-        //    - 전체 분포 반높이: (max-min)/2
-        //    - 극단점 중심 간 거리의 반값: abs(extreme centroid)/2
-        //    이 둘 중 큰 값을 채택해 두 지점이 반드시 한 화면에 들어오도록 함
+        // 5) 오토줌용 세로 반높이(두 지점 동시 프레이밍 보장)
         float halfBySpread = Mathf.Max(0f, (maxY - minY) * 0.5f);
         float halfByTwoPoints = Mathf.Abs(extremeY - centroidY) * 0.5f;
         float halfRaw = Mathf.Max(halfBySpread, halfByTwoPoints);
 
-        // 6) 범위 스무딩(프레임 간 깜빡임 방지)
-        // extentSmoothFactor: 0=즉시 반영, 1=매우 느림
-        float lerpT = Mathf.Clamp01(1f - extentSmoothFactor);
+        // 6) 범위 스무딩
+        float lerpT = Mathf.Clamp01(1f - extentSmoothFactor); // 0=즉시, 1=느림
         lastExtent = Mathf.Lerp(lastExtent <= 0f ? halfRaw : lastExtent, halfRaw, lerpT);
         halfHeight = lastExtent;
+
+        // 캐시(홀드용)
+        lastValidParticlesY = focusY;
+        lastValidParticlesHalf = halfRaw;
+        particlesSeenAt = Time.time;
 
         return true;
     }
 
-
-
-    List<Transform> CollectActiveParticleSamples()
+    // 홀드 래퍼
+    bool TryGetParticlesYAndExtent_WithHold(out float focusY, out float halfHeight)
     {
-        var outList = new List<Transform>(64);
-        AccumulateFromRoots(liquidRootsOrParticles, outList);
-        AccumulateFromRoots(gasRootsOrParticles, outList);
+        if (TryGetParticlesYAndExtent(out focusY, out halfHeight))
+            return true;
 
-        if (includeTagSearch)
+        if (Time.time - particlesSeenAt <= missingHoldTime)
         {
-            if (!string.IsNullOrEmpty(liquidTag))
-                AccumulateFromTag(liquidTag, outList);
-            if (!string.IsNullOrEmpty(gasTag))
-                AccumulateFromTag(gasTag, outList);
+            focusY = lastValidParticlesY;
+            // halfHeight는 줌 안정성을 위해 "스무딩된 값"을 계속 사용
+            halfHeight = (lastExtent > 0f) ? lastExtent : lastValidParticlesHalf;
+            return true;
         }
-        return outList;
+
+        focusY = 0f; halfHeight = 0f;
+        return false;
     }
 
+    // ───────── 수집 유틸 ─────────
     static void AccumulateFromRoots(List<GameObject> rootsOrParticles, List<Transform> outList)
     {
         if (rootsOrParticles == null) return;
+
         foreach (var root in rootsOrParticles)
         {
             if (!root) continue;
